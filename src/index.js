@@ -1,1 +1,2 @@
-console.log(process.env);
+import 'bootstrap';
+import './style.scss';
