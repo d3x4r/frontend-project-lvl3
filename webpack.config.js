@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 module.exports = {
   mode: process.env.NODE_ENV || 'development',
@@ -14,7 +15,7 @@ module.exports = {
       }, {
         test: /\.(scss)$/,
         use: [{
-          loader: 'style-loader', // inject CSS to page
+          loader: MiniCssExtractPlugin.loader, // inject CSS to page
         }, {
           loader: 'css-loader', // translates CSS into CommonJS modules
         }, {
@@ -37,6 +38,10 @@ module.exports = {
     new HtmlWebpackPlugin({
       title: 'Rss-reader',
       template: path.resolve(__dirname, 'template.html'),
+    }), new MiniCssExtractPlugin({
+      filename: 'style.css',
+      chunkFilename: '[id].css',
+      ignoreOrder: false,
     }),
   ],
   output: {
