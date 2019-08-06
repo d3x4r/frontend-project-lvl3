@@ -12,29 +12,32 @@
     <div class="row">
       <div class="jumbotron mb-4 col pt-3 pb-3">
         <h1>RSS Reader</h1>
-        <div class="input-group mb-3">
+        <div class="input-group mb-1 position-relative">
           <input type="text" class="form-control" placeholder="feed url" aria-label="feed url"
-            aria-describedby="basic-addon1">
+            aria-describedby="basic-addon1" autofocus>
         </div>
-        <a class="btn btn-primary btn-lg" href="#" role="button">Add</a>
+        <div class="message-container mb-2 text-secondary">
+          edit url
+        </div>
+        <button type="button" class="btn btn-lg btn-primary" disabled>Add</button>
       </div>
     </div>
     <div class="row">
-      <ul class="list-group col-3">
-        <li class="list-group-item">Cras justo odio</li>
+      <ul class="list-group col-3 feed-list">
+        <!-- <li class="list-group-item">Cras justo odio</li>
         <li class="list-group-item">Dapibus ac facilisis in</li>
         <li class="list-group-item">Morbi leo risus</li>
         <li class="list-group-item">Porta ac consectetur ac</li>
-        <li class="list-group-item">Vestibulum at eros</li>
+        <li class="list-group-item">Vestibulum at eros</li> -->
       </ul>
-      <ul class="list-group col-9 p-0">
-        <li class="list-group-item">
+      <ul class="list-group col-9 p-0 news-list">
+        <!-- <li class="list-group-item">
           <h1>Cras justo odio</h1>
         </li>
         <li class="list-group-item">Dapibus ac facilisis in</li>
         <li class="list-group-item">Morbi leo risus</li>
         <li class="list-group-item">Porta ac consectetur ac</li>
-        <li class="list-group-item">Vestibulum at eros</li>
+        <li class="list-group-item">Vestibulum at eros</li> -->
       </ul>
     </div>
   </main>

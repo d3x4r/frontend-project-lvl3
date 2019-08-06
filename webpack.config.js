@@ -2,6 +2,7 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const autoprefixer = require('autoprefixer');
 
 module.exports = {
   mode: process.env.NODE_ENV || 'development',
@@ -11,7 +12,20 @@ module.exports = {
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        loader: ['babel-loader', 'eslint-loader'],
+        // loader: ['babel-loader', 'eslint-loader'],
+        use: [
+          {
+            loader: 'babel-loader',
+          },
+          {
+            loader: 'eslint-loader',
+            options: {
+              quiet: true,
+              failOnWarning: false,
+              failOnError: false,
+            },
+          },
+        ],
       }, {
         test: /\.(scss)$/,
         use: [{
@@ -23,7 +37,7 @@ module.exports = {
           options: {
             plugins() { // postcss plugins, can be exported to postcss.config.js
               return [
-                require('autoprefixer'),
+                autoprefixer,
               ];
             },
           },
