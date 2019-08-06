@@ -1,4 +1,5 @@
 // import 'bootstrap';
+import 'bootstrap/js/dist/modal';
 import './style.scss';
 import validator from 'validator';
 import { watch } from 'melanke-watchjs';
@@ -7,13 +8,15 @@ import { renderFeedsList, renderNewsList } from './renders';
 
 const domparser = new DOMParser();
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
-const getTitle = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
+const normalizeText = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
 
 const app = () => {
   const form = document.querySelector('.jumbotron');
   const input = form.querySelector('.form-control');
   const button = form.querySelector('.btn');
   const message = form.querySelector('.message-container');
+  const newsContrainer = document.querySelector('.news-list');
+  const modalTextContainer = document.querySelector('.modal-body');
 
   const state = {
     form: {
@@ -23,6 +26,7 @@ const app = () => {
     },
     feedsList: [],
     newsList: [],
+    modalText: '',
   };
 
   const updateForm = {
@@ -71,7 +75,7 @@ const app = () => {
 
     if (state.feedsList.some(({ index }) => index === currentUrl)) {
       state.form.status = 'invalid';
-      state.form.message = 'this url already added';
+      state.form.message = 'this url is already added';
       return;
     }
 
@@ -97,7 +101,7 @@ const app = () => {
 
   const updateFeedState = channel => new Promise((resolve) => {
     const channelTitle = channel.querySelector('title').textContent;
-    const normalizedChannelTitle = getTitle(channelTitle);
+    const normalizedChannelTitle = normalizeText(channelTitle);
     state.feedsList.push({ title: normalizedChannelTitle, index: state.form.currentUrl });
     state.form.currentUrl = '';
     resolve(channel);
@@ -106,16 +110,29 @@ const app = () => {
   const updateNewsState = channel => new Promise(() => {
     const news = channel.querySelectorAll('item');
 
-    const newState = [...news].map((currentNews) => {
+    const newsState = [...news].map((currentNews) => {
       const currentTitle = currentNews.querySelector('title').textContent;
-      const normalizedCurrentTitle = getTitle(currentTitle);
+      const normalizedCurrentTitle = normalizeText(currentTitle);
       const link = currentNews.querySelector('link').nextSibling.textContent;
+      const description = normalizeText(currentNews.querySelector('description').innerHTML);
       return {
         title: normalizedCurrentTitle,
         link,
+        description,
       };
     });
-    state.newsList = [...state.newsList, ...newState];
+    state.newsList = [...state.newsList, ...newsState];
+  });
+
+  newsContrainer.addEventListener('click', (evt) => {
+    const currentNewsButton = evt.target.closest('button');
+    if (!currentNewsButton) {
+      return;
+    }
+    const currentNewsContainer = currentNewsButton.closest('.list-group-item');
+    const currentNewsLink = currentNewsContainer.querySelector('a').getAttribute('href');
+    const currentNewsData = state.newsList.find(({ link }) => link === currentNewsLink);
+    state.modalText = currentNewsData.description;
   });
 
   button.addEventListener('click', () => {
@@ -140,6 +157,10 @@ const app = () => {
   watch(state, 'feedsList', () => {
     renderFeedsList(state);
     renderNewsList(state);
+  });
+
+  watch(state, 'modalText', () => {
+    modalTextContainer.innerHTML = state.modalText;
   });
 };
 app();

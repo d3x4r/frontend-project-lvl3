@@ -1,4 +1,12 @@
 $enable-validation-icons: false;
+$modal-header-border-color: transparent;
+$container-max-widths: (
+  sm: 540px,
+  md: 720px,
+  lg: 960px,
+  xl: 1300px
+);
+
 @import "~bootstrap/scss/functions";
 @import "~bootstrap/scss/variables";
 @import "~bootstrap/scss/mixins";
@@ -22,3 +30,7 @@ $enable-validation-icons: false;
 @import "~bootstrap/scss/forms";
 @import "~bootstrap/scss/list-group";
 @import "~bootstrap/scss/alert";
+@import "~bootstrap/scss/modal";
+@import "~bootstrap/scss/transitions";
+@import "~bootstrap/scss/close";
+

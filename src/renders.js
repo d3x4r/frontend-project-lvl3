@@ -14,18 +14,27 @@ const renderFeedsList = (state) => {
 };
 
 const renderNewsList = (state) => {
-  const currentNewsList = document.querySelector('.news-list');
+  const currentNewsList = document.querySelector('.news-list__container');
   const newNewsList = document.createElement('ul');
-  newNewsList.classList.add('list-group', 'col-9', 'p-0', 'news-list');
+  newNewsList.classList.add('list-group', 'news-list__container');
 
   state.newsList.forEach((currentNews) => {
     const listItem = document.createElement('li');
     const link = document.createElement('a');
+    const button = document.createElement('button');
+
     listItem.classList.add('list-group-item');
+    link.classList.add('d-block', 'mb-3');
     link.textContent = currentNews.title;
     link.setAttribute('href', currentNews.link);
+    button.textContent = 'Read description';
+    button.classList.add('btn', 'btn-info');
 
-    listItem.append(link);
+    button.setAttribute('type', 'button');
+    button.dataset.toggle = 'modal';
+    button.dataset.target = '#news-modal';
+
+    listItem.append(link, button);
 
     newNewsList.append(listItem);
   });
