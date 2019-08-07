@@ -1,11 +1,10 @@
-// import 'bootstrap';
-import 'bootstrap/js/dist/modal';
-import './style.scss';
+import axios from 'axios';
+import flatten from 'lodash.flatten';
 import validator from 'validator';
 import { watch } from 'melanke-watchjs';
-import flatten from 'lodash.flatten';
-import axios from 'axios';
 import { renderFeedsList, renderNewsList } from './renders';
+import 'bootstrap/js/dist/modal';
+import './style.scss';
 
 const domparser = new DOMParser();
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
@@ -91,20 +90,21 @@ const app = () => {
   const checkResponse = response => new Promise((resolve, reject) => {
     const { data } = response;
     const html = domparser.parseFromString(data, 'text/html');
-    const channel = html.querySelector('channel');
-    if (!channel) {
+    const feed = html.querySelector('channel');
+    if (!feed) {
       reject(new Error('This url doesnt have a rss-channel'));
     }
     state.form.status = 'afterSucces';
     state.form.message = 'the feed is added';
-    resolve(channel);
+    resolve(feed);
   });
 
   const updateFeedsState = feed => new Promise((resolve) => {
-    const channelTitle = feed.querySelector('title').textContent;
-    const normalizedChannelTitle = normalizeText(channelTitle);
+    const feedTitle = feed.querySelector('title');
+    const feedTitleText = feedTitle.textContent;
+    const normalizedFeedTitleText = normalizeText(feedTitleText);
     const feedItem = {
-      title: normalizedChannelTitle,
+      title: normalizedFeedTitleText,
       link: state.form.currentUrl,
     };
     state.feedsList = [feedItem, ...state.feedsList];
@@ -112,18 +112,22 @@ const app = () => {
     resolve(feed);
   });
 
-  const getNews = (feed) => {
+  const getNewsList = (feed) => {
     const news = feed.querySelectorAll('item');
 
     return [...news].map((currentNews) => {
-      const title = currentNews.querySelector('title').textContent;
-      const normalizedTitle = normalizeText(title);
-      const link = currentNews.querySelector('link').nextSibling.textContent;
-      const description = normalizeText(currentNews.querySelector('description').innerHTML);
+      const title = currentNews.querySelector('title');
+      const titleText = title.textContent;
+      const normalizedTitle = normalizeText(titleText);
+      const link = currentNews.querySelector('link').nextSibling;
+      const linkHref = link.textContent;
+      const description = currentNews.querySelector('description');
+      const descriptionContent = description.innerHTML;
+      const normalizeDescription = normalizeText(descriptionContent);
       return {
         title: normalizedTitle,
-        link,
-        description,
+        link: linkHref,
+        description: normalizeDescription,
       };
     });
   };
@@ -136,7 +140,7 @@ const app = () => {
       Promise.all(promisesOfUpdatedFeeds)
         .then(updatedFeeds => updatedFeeds.map((feed) => {
           const htmlFeed = domparser.parseFromString(feed.data, 'text/html');
-          return getNews(htmlFeed);
+          return getNewsList(htmlFeed);
         }))
         .then((newsList) => {
           const flattenNewsList = flatten(newsList);
@@ -151,7 +155,7 @@ const app = () => {
   };
 
   const updateNewsState = feed => new Promise(() => {
-    const newsList = getNews(feed);
+    const newsList = getNewsList(feed);
 
     state.newsList = [...newsList, ...state.newsList];
 
@@ -166,9 +170,10 @@ const app = () => {
     if (!descriptionButton) {
       return;
     }
-    const currentNewsContainer = descriptionButton.closest('.list-group-item');
-    const currentNewsLink = currentNewsContainer.querySelector('a').getAttribute('href');
-    const currentNews = state.newsList.find(({ link }) => link === currentNewsLink);
+    const newsContainer = descriptionButton.closest('.list-group-item');
+    const newsLink = newsContainer.querySelector('a');
+    const newsLinkHref = newsLink.getAttribute('href');
+    const currentNews = state.newsList.find(({ link }) => link === newsLinkHref);
     state.textOfModal = currentNews.description;
   });
 
