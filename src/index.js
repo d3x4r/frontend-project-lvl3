@@ -3,6 +3,7 @@ import 'bootstrap/js/dist/modal';
 import './style.scss';
 import validator from 'validator';
 import { watch } from 'melanke-watchjs';
+import flatten from 'lodash.flatten';
 import axios from 'axios';
 import { renderFeedsList, renderNewsList } from './renders';
 
@@ -11,10 +12,11 @@ const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}
 const normalizeText = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
 
 const app = () => {
+  let timer;
   const form = document.querySelector('.jumbotron');
   const input = form.querySelector('.form-control');
   const button = form.querySelector('.btn');
-  const message = form.querySelector('.message-container');
+  const statusMessage = form.querySelector('.message-container');
   const newsContrainer = document.querySelector('.news-list');
   const modalTextContainer = document.querySelector('.modal-body');
 
@@ -26,34 +28,34 @@ const app = () => {
     },
     feedsList: [],
     newsList: [],
-    modalText: '',
+    textOfModal: '',
   };
 
   const updateForm = {
     clean: () => {
       input.classList.remove('is-invalid');
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
     invalid: () => {
       input.classList.add('is-invalid');
       button.disabled = true;
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
     valid: () => {
       input.classList.remove('is-invalid');
       button.disabled = false;
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
     lock: () => {
       input.setAttribute('readonly', 'readonly');
       button.disabled = true;
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
     afterError: () => {
       input.classList.add('is-invalid');
       input.removeAttribute('readonly');
       button.disabled = false;
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
     afterSucces: () => {
       input.classList.remove('is-invalid');
@@ -61,7 +63,7 @@ const app = () => {
       input.value = state.form.currentUrl;
       input.value = '';
       button.disabled = false;
-      message.textContent = state.form.message;
+      statusMessage.textContent = state.form.message;
     },
   };
 
@@ -72,24 +74,24 @@ const app = () => {
       state.form.message = 'edit url';
       return;
     }
-
-    if (state.feedsList.some(({ index }) => index === currentUrl)) {
+    const isEqualLink = ({ link }) => link === currentUrl;
+    if (state.feedsList.some(isEqualLink)) {
       state.form.status = 'invalid';
       state.form.message = 'this url is already added';
       return;
     }
 
-    const urlIsValid = validator.isURL(String(currentUrl));
+    const isValidUrl = validator.isURL(String(currentUrl));
 
-    state.form.status = urlIsValid ? 'valid' : 'invalid';
-    state.form.message = urlIsValid ? 'this url is correct' : 'please, edit correct url';
+    state.form.status = isValidUrl ? 'valid' : 'invalid';
+    state.form.message = isValidUrl ? 'this url is correct' : 'please, edit correct url';
     state.form.currentUrl = currentUrl;
   });
 
   const checkResponse = response => new Promise((resolve, reject) => {
     const { data } = response;
-    const dataToHtml = domparser.parseFromString(data, 'text/html');
-    const channel = dataToHtml.querySelector('channel');
+    const html = domparser.parseFromString(data, 'text/html');
+    const channel = html.querySelector('channel');
     if (!channel) {
       reject(new Error('This url doesnt have a rss-channel'));
     }
@@ -98,41 +100,76 @@ const app = () => {
     resolve(channel);
   });
 
-
-  const updateFeedState = channel => new Promise((resolve) => {
-    const channelTitle = channel.querySelector('title').textContent;
+  const updateFeedsState = feed => new Promise((resolve) => {
+    const channelTitle = feed.querySelector('title').textContent;
     const normalizedChannelTitle = normalizeText(channelTitle);
-    state.feedsList.push({ title: normalizedChannelTitle, index: state.form.currentUrl });
+    const feedItem = {
+      title: normalizedChannelTitle,
+      link: state.form.currentUrl,
+    };
+    state.feedsList = [feedItem, ...state.feedsList];
     state.form.currentUrl = '';
-    resolve(channel);
+    resolve(feed);
   });
 
-  const updateNewsState = channel => new Promise(() => {
-    const news = channel.querySelectorAll('item');
+  const getNews = (feed) => {
+    const news = feed.querySelectorAll('item');
 
-    const newsState = [...news].map((currentNews) => {
-      const currentTitle = currentNews.querySelector('title').textContent;
-      const normalizedCurrentTitle = normalizeText(currentTitle);
+    return [...news].map((currentNews) => {
+      const title = currentNews.querySelector('title').textContent;
+      const normalizedTitle = normalizeText(title);
       const link = currentNews.querySelector('link').nextSibling.textContent;
       const description = normalizeText(currentNews.querySelector('description').innerHTML);
       return {
-        title: normalizedCurrentTitle,
+        title: normalizedTitle,
         link,
         description,
       };
     });
-    state.newsList = [...state.newsList, ...newsState];
+  };
+
+  const checkUpdates = (time) => {
+    timer = setTimeout(() => {
+      const activeFeeds = state.feedsList;
+      const promisesOfUpdatedFeeds = activeFeeds.map(({ link }) => axios.get(getUrl(link)));
+
+      Promise.all(promisesOfUpdatedFeeds)
+        .then(updatedFeeds => updatedFeeds.map((feed) => {
+          const htmlFeed = domparser.parseFromString(feed.data, 'text/html');
+          return getNews(htmlFeed);
+        }))
+        .then((newsList) => {
+          const flattenNewsList = flatten(newsList);
+          const newNewsList = flattenNewsList.filter((newNews) => {
+            const isEqualLink = ({ link }) => link === newNews.link;
+            return !state.newsList.some(isEqualLink);
+          });
+          state.newsList = [...newNewsList, ...state.newsList];
+        })
+        .then(checkUpdates(5000));
+    }, time);
+  };
+
+  const updateNewsState = feed => new Promise(() => {
+    const newsList = getNews(feed);
+
+    state.newsList = [...newsList, ...state.newsList];
+
+    if (timer) {
+      clearTimeout(timer);
+    }
+    checkUpdates(5000);
   });
 
   newsContrainer.addEventListener('click', (evt) => {
-    const currentNewsButton = evt.target.closest('button');
-    if (!currentNewsButton) {
+    const descriptionButton = evt.target.closest('button');
+    if (!descriptionButton) {
       return;
     }
-    const currentNewsContainer = currentNewsButton.closest('.list-group-item');
+    const currentNewsContainer = descriptionButton.closest('.list-group-item');
     const currentNewsLink = currentNewsContainer.querySelector('a').getAttribute('href');
-    const currentNewsData = state.newsList.find(({ link }) => link === currentNewsLink);
-    state.modalText = currentNewsData.description;
+    const currentNews = state.newsList.find(({ link }) => link === currentNewsLink);
+    state.textOfModal = currentNews.description;
   });
 
   button.addEventListener('click', () => {
@@ -142,7 +179,7 @@ const app = () => {
 
     axios.get(url)
       .then(checkResponse)
-      .then(updateFeedState)
+      .then(updateFeedsState)
       .then(updateNewsState)
       .catch((error) => {
         state.form.status = 'afterError';
@@ -154,13 +191,13 @@ const app = () => {
     updateForm[state.form.status]();
   });
 
-  watch(state, 'feedsList', () => {
+  watch(state, ['feedsList', 'newsList'], () => {
     renderFeedsList(state);
     renderNewsList(state);
   });
 
-  watch(state, 'modalText', () => {
-    modalTextContainer.innerHTML = state.modalText;
+  watch(state, 'textOfModal', () => {
+    modalTextContainer.innerHTML = state.textOfModal;
   });
 };
 app();
