@@ -86,17 +86,18 @@ export default () => {
     state.form.currentUrl = currentUrl;
   });
 
-  const getFeed = data => new Promise((resolve, reject) => {
+  const getHtml = data => new Promise((resolve) => {
     const domparser = new DOMParser();
     const html = domparser.parseFromString(data, 'text/html');
+    resolve(html);
+  });
+
+  const updateFeedsState = html => new Promise((resolve, reject) => {
     const feed = html.querySelector('channel');
     if (!feed) {
       reject(new Error('This url doesnt have a rss-channel'));
     }
-    resolve(feed);
-  });
 
-  const updateFeedsState = feed => new Promise((resolve) => {
     const feedTitle = feed.querySelector('title');
     const feedTitleText = feedTitle.textContent;
     const normalizedFeedTitleText = normalizeText(feedTitleText);
@@ -186,7 +187,7 @@ export default () => {
 
     axios.get(url)
       .then(response => response.data)
-      .then(getFeed)
+      .then(getHtml)
       .then(updateFeedsState)
       .then(updateNewsState)
       .then(watchForUpdates)
