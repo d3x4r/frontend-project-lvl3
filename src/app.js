@@ -1,6 +1,6 @@
 import axios from 'axios';
-import flatten from 'lodash.flatten';
 import validator from 'validator';
+import { find, flatten } from 'lodash';
 import { watch } from 'melanke-watchjs';
 import { renderFeedsList, renderNewsList } from './renders';
 
@@ -47,7 +47,7 @@ export default () => {
       button.disabled = true;
       statusMessage.textContent = 'this url is already added';
     },
-    lock: () => {
+    processing: () => {
       input.setAttribute('readonly', 'readonly');
       button.disabled = true;
       statusMessage.textContent = 'wait a few seconds';
@@ -86,11 +86,10 @@ export default () => {
     state.form.currentUrl = currentUrl;
   });
 
-  const getHtml = data => new Promise((resolve) => {
+  const getHtml = (data) => {
     const domparser = new DOMParser();
-    const html = domparser.parseFromString(data, 'text/html');
-    resolve(html);
-  });
+    return domparser.parseFromString(data, 'text/html');
+  };
 
   const updateFeedsState = html => new Promise((resolve, reject) => {
     const feed = html.querySelector('channel');
@@ -138,17 +137,16 @@ export default () => {
 
       Promise.all(promisesOfUpdatedFeeds)
         .then(updatedFeeds => updatedFeeds.map((feed) => {
-          const domparser = new DOMParser();
-          const htmlFeed = domparser.parseFromString(feed.data, 'text/html');
-          return getNewsList(htmlFeed);
+          const html = getHtml(feed.data);
+          return getNewsList(html);
         }))
         .then((newsList) => {
           const flattenNewsList = flatten(newsList);
-          const newNewsList = flattenNewsList.filter((newNews) => {
-            const isEqualLink = ({ link }) => link === newNews.link;
-            return !state.newsList.some(isEqualLink);
+          const addedNews = flattenNewsList.filter((news) => {
+            const link = { link: news.link };
+            return !find(state.newsList, link);
           });
-          state.newsList = [...newNewsList, ...state.newsList];
+          state.newsList = [...addedNews, ...state.newsList];
         })
         .then(checkUpdates(5000));
     }, time);
@@ -183,7 +181,7 @@ export default () => {
   form.addEventListener('submit', (evt) => {
     evt.preventDefault();
     const url = getUrl(state.form.currentUrl);
-    state.form.status = 'lock';
+    state.form.status = 'processing';
 
     axios.get(url)
       .then(response => response.data)
