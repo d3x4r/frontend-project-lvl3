@@ -20,7 +20,7 @@ const formStatuses = {
     alreadyAdded: 'this url is already added',
     processing: 'wait a few seconds',
     afterSucces: 'the feed is added',
-    withoutFeed: 'This url doesnt have a rss-channel',
+    feedNotFound: 'This url doesnt have a rss-channel',
   },
 };
 

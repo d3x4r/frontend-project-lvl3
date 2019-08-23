@@ -85,7 +85,6 @@ export default () => {
     }
 
     const isValidUrl = validator.isURL(String(value));
-
     state.form.status = isValidUrl ? 'valid' : 'invalid';
     state.form.currentUrl = value;
   };
@@ -94,7 +93,7 @@ export default () => {
     const html = parseString(stringXml);
     const feed = html.querySelector('channel');
     if (!feed) {
-      throw new Error('withoutFeed');
+      throw new Error('feedNotFound');
     }
     return feed;
   };
@@ -158,16 +157,20 @@ export default () => {
     checkUpdates(5000);
   };
 
+  const processingResponses = (responses) => {
+    Promise.all(responses)
+      .then(responsesList => responsesList.map(response => response.data))
+      .then(dataList => dataList.map(data => getFeed(data)))
+      .then(feedsList => feedsList.map(feed => getNewsList(feed)))
+      .then(addNewNewsToState)
+      .then(watchForUpdates);
+  };
+
   const checkUpdates = (time) => {
     timer = setTimeout(() => {
       const activeFeeds = state.feedsList;
-      const listOfUpdatedData = activeFeeds.map(({ link }) => axios.get(getUrl(link)));
-
-      Promise.all(listOfUpdatedData)
-        .then(updatedData => updatedData.map(({ data }) => getFeed(data)))
-        .then(feedsList => feedsList.map(feed => getNewsList(feed)))
-        .then(addNewNewsToState)
-        .then(watchForUpdates);
+      const responses = activeFeeds.map(({ link }) => axios.get(getUrl(link)));
+      processingResponses(responses);
     }, time);
   };
 
