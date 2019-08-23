@@ -1,8 +1,9 @@
 import axios from 'axios';
 import validator from 'validator';
-import { find, flatten } from 'lodash';
+import { flatten, some } from 'lodash';
 import { watch } from 'melanke-watchjs';
 import { renderFeedsList, renderNewsList } from './renders';
+import parseString from './string-parser';
 
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
 const normalizeText = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
@@ -16,6 +17,8 @@ export default () => {
   const statusMessage = form.querySelector('.message-container');
   const newsContrainer = document.querySelector('.news-list');
   const modalTextContainer = document.querySelector('.modal-body');
+
+  const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
 
   const state = {
     form: {
@@ -68,132 +71,140 @@ export default () => {
     },
   };
 
-  input.addEventListener('input', (evt) => {
-    const currentUrl = evt.target.value;
-    if (currentUrl === '') {
+  const validateLink = ({ target: { value } }) => {
+    if (value === '') {
       state.form.status = 'clean';
       return;
     }
-    const isEqualLink = ({ link }) => link === currentUrl;
-    if (state.feedsList.some(isEqualLink)) {
+
+    if (isAddedLink(state.feedsList, value)) {
       state.form.status = 'alreadyAdded';
       return;
     }
 
-    const isValidUrl = validator.isURL(String(currentUrl));
+    const isValidUrl = validator.isURL(String(value));
 
     state.form.status = isValidUrl ? 'valid' : 'invalid';
-    state.form.currentUrl = currentUrl;
-  });
-
-  const getHtml = (data) => {
-    const domparser = new DOMParser();
-    return domparser.parseFromString(data, 'text/html');
+    state.form.currentUrl = value;
   };
 
-  const updateFeedsState = html => new Promise((resolve, reject) => {
+  const getFeed = (stringXml) => {
+    const html = parseString(stringXml);
     const feed = html.querySelector('channel');
     if (!feed) {
-      reject(new Error('This url doesnt have a rss-channel'));
+      throw new Error('This url doesnt have a rss-channel');
     }
+    return feed;
+  };
 
-    const feedTitle = feed.querySelector('title');
-    const feedTitleText = feedTitle.textContent;
-    const normalizedFeedTitleText = normalizeText(feedTitleText);
+  const addFeedToState = (feed) => {
+    const feedTitleElement = feed.querySelector('title');
+    const feedTitle = feedTitleElement.textContent;
+    const normalizedFeedTitle = normalizeText(feedTitle);
     const feedItem = {
-      title: normalizedFeedTitleText,
+      title: normalizedFeedTitle,
       link: state.form.currentUrl,
     };
     state.feedsList = [feedItem, ...state.feedsList];
     state.form.currentUrl = '';
     state.form.status = 'afterSucces';
-    resolve(feed);
-  });
+  };
+
+  const getNews = (news) => {
+    const newsTitleElement = news.querySelector('title');
+    const title = newsTitleElement.textContent;
+    const normalizedTitle = normalizeText(title);
+    const link = news.querySelector('link').nextSibling;
+    const linkHref = link.textContent;
+    const descriptionElement = news.querySelector('description');
+    const description = descriptionElement.innerHTML;
+    const normalizedDescription = normalizeText(description);
+    return {
+      title: normalizedTitle,
+      link: linkHref,
+      description: normalizedDescription,
+    };
+  };
 
   const getNewsList = (feed) => {
     const news = feed.querySelectorAll('item');
-
-    return [...news].map((currentNews) => {
-      const title = currentNews.querySelector('title');
-      const titleText = title.textContent;
-      const normalizedTitle = normalizeText(titleText);
-      const link = currentNews.querySelector('link').nextSibling;
-      const linkHref = link.textContent;
-      const description = currentNews.querySelector('description');
-      const descriptionContent = description.innerHTML;
-      const normalizeDescription = normalizeText(descriptionContent);
-      return {
-        title: normalizedTitle,
-        link: linkHref,
-        description: normalizeDescription,
-      };
-    });
+    return [...news].map(getNews);
   };
 
-  const checkUpdates = (time) => {
-    timer = setTimeout(() => {
-      const activeFeeds = state.feedsList;
-      const promisesOfUpdatedFeeds = activeFeeds.map(({ link }) => axios.get(getUrl(link)));
-
-      Promise.all(promisesOfUpdatedFeeds)
-        .then(updatedFeeds => updatedFeeds.map((feed) => {
-          const html = getHtml(feed.data);
-          return getNewsList(html);
-        }))
-        .then((newsList) => {
-          const flattenNewsList = flatten(newsList);
-          const addedNews = flattenNewsList.filter((news) => {
-            const link = { link: news.link };
-            return !find(state.newsList, link);
-          });
-          state.newsList = [...addedNews, ...state.newsList];
-        })
-        .then(checkUpdates(5000));
-    }, time);
-  };
-
-  const updateNewsState = feed => new Promise((resolve) => {
+  const addNewsToState = (feed) => {
     const newsList = getNewsList(feed);
-
     state.newsList = [...newsList, ...state.newsList];
-    resolve();
-  });
+  };
+
+  const updateState = (feed) => {
+    addFeedToState(feed);
+    addNewsToState(feed);
+  };
+
+  const addNewNewsToState = (newsList) => {
+    const flattenNewsList = flatten(newsList);
+    const addedNews = flattenNewsList
+      .filter(({ link }) => !isAddedLink(state.newsList, link));
+    state.newsList = [...addedNews, ...state.newsList];
+  };
 
   const watchForUpdates = () => {
     if (timer) {
       clearTimeout(timer);
     }
+    // eslint-disable-next-line no-use-before-define
     checkUpdates(5000);
   };
 
-  newsContrainer.addEventListener('click', (evt) => {
-    const descriptionButton = evt.target.closest('button');
-    if (!descriptionButton) {
+  const checkUpdates = (time) => {
+    timer = setTimeout(() => {
+      const activeFeeds = state.feedsList;
+      const listOfUpdatedData = activeFeeds.map(({ link }) => axios.get(getUrl(link)));
+
+      Promise.all(listOfUpdatedData)
+        .then(updatedData => updatedData.map(({ data }) => getFeed(data)))
+        .then(feedsList => feedsList.map(feed => getNewsList(feed)))
+        .then(addNewNewsToState)
+        .then(watchForUpdates);
+    }, time);
+  };
+
+  const showCurrentNews = ({ target }) => {
+    const showNewsButton = target.closest('button');
+    if (!showNewsButton) {
       return;
     }
-    const newsContainer = descriptionButton.closest('.list-group-item');
+    const newsContainer = showNewsButton.closest('.list-group-item');
     const newsLink = newsContainer.querySelector('a');
     const newsLinkHref = newsLink.getAttribute('href');
     const currentNews = state.newsList.find(({ link }) => link === newsLinkHref);
     state.textOfModal = currentNews.description;
-  });
+  };
 
-  form.addEventListener('submit', (evt) => {
-    evt.preventDefault();
-    const url = getUrl(state.form.currentUrl);
-    state.form.status = 'processing';
+  const onRequestError = (error) => {
+    state.form.status = 'afterError';
+    errorMessage = error;
+  };
 
+  const sendRequest = (url) => {
     axios.get(url)
       .then(response => response.data)
-      .then(getHtml)
-      .then(updateFeedsState)
-      .then(updateNewsState)
+      .then(getFeed)
+      .then(updateState)
       .then(watchForUpdates)
-      .catch((error) => {
-        state.form.status = 'afterError';
-        errorMessage = error;
-      });
-  });
+      .catch(onRequestError);
+  };
+
+  const onSubmit = (evt) => {
+    evt.preventDefault();
+    const currentUrl = getUrl(state.form.currentUrl);
+    sendRequest(currentUrl);
+    state.form.status = 'processing';
+  };
+
+  input.addEventListener('input', validateLink);
+  newsContrainer.addEventListener('click', showCurrentNews);
+  form.addEventListener('submit', onSubmit);
 
   watch(state.form, 'status', () => {
     updateForm[state.form.status]();
