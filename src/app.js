@@ -3,6 +3,7 @@ import validator from 'validator';
 import { flatten, some } from 'lodash';
 import { watch } from 'melanke-watchjs';
 import { renderFeedsList, renderNewsList } from './renders';
+import { initFormStatus, setFormStatus } from './localize-form-statuses';
 import parseString from './string-parser';
 
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
@@ -14,11 +15,12 @@ export default () => {
   const form = document.querySelector('.jumbotron');
   const input = form.querySelector('.form-control');
   const button = form.querySelector('.btn');
-  const statusMessage = form.querySelector('.message-container');
   const newsContrainer = document.querySelector('.news-list');
   const modalTextContainer = document.querySelector('.modal-body');
 
   const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
+
+  initFormStatus();
 
   const state = {
     form: {
@@ -33,33 +35,33 @@ export default () => {
   const updateForm = {
     clean: () => {
       input.classList.remove('is-invalid');
-      statusMessage.textContent = 'edit url';
+      setFormStatus('clean');
     },
     invalid: () => {
       input.classList.add('is-invalid');
       button.disabled = true;
-      statusMessage.textContent = 'please, edit correct url';
+      setFormStatus('invalid');
     },
     valid: () => {
       input.classList.remove('is-invalid');
       button.disabled = false;
-      statusMessage.textContent = 'this url is correct';
+      setFormStatus('valid');
     },
     alreadyAdded: () => {
       input.classList.add('is-invalid');
       button.disabled = true;
-      statusMessage.textContent = 'this url is already added';
+      setFormStatus('alreadyAdded');
     },
     processing: () => {
       input.setAttribute('readonly', 'readonly');
       button.disabled = true;
-      statusMessage.textContent = 'wait a few seconds';
+      setFormStatus('processing');
     },
     afterError: () => {
       input.classList.add('is-invalid');
       input.removeAttribute('readonly');
       button.disabled = false;
-      statusMessage.textContent = errorMessage;
+      setFormStatus('afterError', errorMessage);
     },
     afterSucces: () => {
       input.classList.remove('is-invalid');
@@ -67,7 +69,7 @@ export default () => {
       input.value = state.form.currentUrl;
       input.value = '';
       button.disabled = false;
-      statusMessage.textContent = 'the feed is added';
+      setFormStatus('afterSucces');
     },
   };
 
@@ -92,7 +94,7 @@ export default () => {
     const html = parseString(stringXml);
     const feed = html.querySelector('channel');
     if (!feed) {
-      throw new Error('This url doesnt have a rss-channel');
+      throw new Error('withoutFeed');
     }
     return feed;
   };
