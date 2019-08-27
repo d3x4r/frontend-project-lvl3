@@ -2,7 +2,7 @@ import i18next from 'i18next';
 
 const statusContainer = document.querySelector('.message-container');
 
-const setFormStatus = (statusKey, error) => {
+const setFormStatus = (statusKey = 'clean', error) => {
   if (error) {
     const { message } = error;
     const errorText = message ? i18next.t(message) : error;
@@ -24,15 +24,15 @@ const formStatuses = {
   },
 };
 
-const initFormStatus = () => {
+const setLanguage = (language = 'en', onInit = setFormStatus) => {
   i18next.init({
-    lng: 'en',
+    lng: language,
     resources: {
       en: {
         translation: formStatuses.en,
       },
     },
-  }).then(setFormStatus('clean'));
+  }).then(onInit());
 };
 
-export { initFormStatus, setFormStatus };
+export { setLanguage, setFormStatus };

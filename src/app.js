@@ -3,15 +3,15 @@ import validator from 'validator';
 import { flatten, some } from 'lodash';
 import { watch } from 'melanke-watchjs';
 import { renderFeedsList, renderNewsList } from './renders';
-import { initFormStatus, setFormStatus } from './localize-form-statuses';
-import parseString from './string-parser';
+import { setLanguage, setFormStatus } from './set-language';
+import parser from './parser';
 
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
-const normalizeText = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
 
 export default () => {
   let timer;
   let errorMessage;
+  const CHECK_INTERVAL = 5000;
   const form = document.querySelector('.jumbotron');
   const input = form.querySelector('.form-control');
   const button = form.querySelector('.btn');
@@ -20,7 +20,7 @@ export default () => {
 
   const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
 
-  initFormStatus();
+  setLanguage('en');
 
   const state = {
     form: {
@@ -66,87 +66,39 @@ export default () => {
     afterSucces: () => {
       input.classList.remove('is-invalid');
       input.removeAttribute('readonly');
-      input.value = state.form.currentUrl;
       input.value = '';
       button.disabled = false;
       setFormStatus('afterSucces');
     },
   };
 
-  const validateLink = ({ target: { value } }) => {
-    if (value === '') {
-      state.form.status = 'clean';
-      return;
+  const validateLink = (link, linksList) => {
+    if (link === '') {
+      return 'clean';
     }
 
-    if (isAddedLink(state.feedsList, value)) {
-      state.form.status = 'alreadyAdded';
-      return;
+    if (isAddedLink(linksList, link)) {
+      return 'alreadyAdded';
     }
 
-    const isValidUrl = validator.isURL(String(value));
-    state.form.status = isValidUrl ? 'valid' : 'invalid';
-    state.form.currentUrl = value;
+    const isValidUrl = validator.isURL(String(link));
+    return isValidUrl ? 'valid' : 'invalid';
   };
 
-  const getFeed = (stringXml) => {
-    const html = parseString(stringXml);
-    const feed = html.querySelector('channel');
-    if (!feed) {
-      throw new Error('feedNotFound');
-    }
-    return feed;
-  };
-
-  const addFeedToState = (feed) => {
-    const feedTitleElement = feed.querySelector('title');
-    const feedTitle = feedTitleElement.textContent;
-    const normalizedFeedTitle = normalizeText(feedTitle);
-    const feedItem = {
-      title: normalizedFeedTitle,
-      link: state.form.currentUrl,
-    };
-    state.feedsList = [feedItem, ...state.feedsList];
+  const updateState = ({ title, news }) => {
+    state.feedsList = [{ title, link: state.form.currentUrl }, ...state.feedsList];
+    state.newsList = [...news, ...state.newsList];
     state.form.currentUrl = '';
     state.form.status = 'afterSucces';
   };
 
-  const getNews = (news) => {
-    const newsTitleElement = news.querySelector('title');
-    const title = newsTitleElement.textContent;
-    const normalizedTitle = normalizeText(title);
-    const link = news.querySelector('link').nextSibling;
-    const linkHref = link.textContent;
-    const descriptionElement = news.querySelector('description');
-    const description = descriptionElement.innerHTML;
-    const normalizedDescription = normalizeText(description);
-    return {
-      title: normalizedTitle,
-      link: linkHref,
-      description: normalizedDescription,
-    };
-  };
-
-  const getNewsList = (feed) => {
-    const news = feed.querySelectorAll('item');
-    return [...news].map(getNews);
-  };
-
-  const addNewsToState = (feed) => {
-    const newsList = getNewsList(feed);
-    state.newsList = [...newsList, ...state.newsList];
-  };
-
-  const updateState = (feed) => {
-    addFeedToState(feed);
-    addNewsToState(feed);
-  };
-
-  const addNewNewsToState = (newsList) => {
+  const getNewNews = (newsList) => {
     const flattenNewsList = flatten(newsList);
-    const addedNews = flattenNewsList
-      .filter(({ link }) => !isAddedLink(state.newsList, link));
-    state.newsList = [...addedNews, ...state.newsList];
+    return flattenNewsList.filter(({ link }) => !isAddedLink(state.newsList, link));
+  };
+
+  const addNewNewsToState = (newNews) => {
+    state.newsList = [...newNews, ...state.newsList];
   };
 
   const watchForUpdates = () => {
@@ -154,14 +106,15 @@ export default () => {
       clearTimeout(timer);
     }
     // eslint-disable-next-line no-use-before-define
-    checkUpdates(5000);
+    checkUpdates(CHECK_INTERVAL);
   };
 
   const processingResponses = (responses) => {
     Promise.all(responses)
       .then(responsesList => responsesList.map(response => response.data))
-      .then(dataList => dataList.map(data => getFeed(data)))
-      .then(feedsList => feedsList.map(feed => getNewsList(feed)))
+      .then(dataList => dataList.map(data => parser(data)))
+      .then(feedsList => feedsList.map(({ news }) => news))
+      .then(getNewNews)
       .then(addNewNewsToState)
       .then(watchForUpdates);
   };
@@ -174,16 +127,16 @@ export default () => {
     }, time);
   };
 
-  const showCurrentNews = ({ target }) => {
+  const getCurrentNews = (target) => {
     const showNewsButton = target.closest('button');
     if (!showNewsButton) {
-      return;
+      return false;
     }
     const newsContainer = showNewsButton.closest('.list-group-item');
     const newsLink = newsContainer.querySelector('a');
     const newsLinkHref = newsLink.getAttribute('href');
     const currentNews = state.newsList.find(({ link }) => link === newsLinkHref);
-    state.textOfModal = currentNews.description;
+    return currentNews.description;
   };
 
   const onRequestError = (error) => {
@@ -191,10 +144,10 @@ export default () => {
     errorMessage = error;
   };
 
-  const sendRequest = (url) => {
+  const startProcessing = (url) => {
     axios.get(url)
       .then(response => response.data)
-      .then(getFeed)
+      .then(parser)
       .then(updateState)
       .then(watchForUpdates)
       .catch(onRequestError);
@@ -203,12 +156,20 @@ export default () => {
   const onSubmit = (evt) => {
     evt.preventDefault();
     const currentUrl = getUrl(state.form.currentUrl);
-    sendRequest(currentUrl);
     state.form.status = 'processing';
+    startProcessing(currentUrl);
   };
 
-  input.addEventListener('input', validateLink);
-  newsContrainer.addEventListener('click', showCurrentNews);
+  input.addEventListener('input', ({ target: { value } }) => {
+    const validationResult = validateLink(value, state.feedsList);
+    state.form.status = validationResult;
+    state.form.currentUrl = value;
+  });
+
+  newsContrainer.addEventListener('click', ({ target }) => {
+    state.textOfModal = getCurrentNews(target);
+  });
+
   form.addEventListener('submit', onSubmit);
 
   watch(state.form, 'status', () => {
