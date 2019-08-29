@@ -1,10 +1,11 @@
 import axios from 'axios';
 import validator from 'validator';
+import i18next from 'i18next';
 import { flatten, some } from 'lodash';
 import { watch } from 'melanke-watchjs';
 import { renderFeedsList, renderNewsList } from './renders';
-import { setLanguage, setFormStatus } from './set-language';
-import parser from './parser';
+import i18nextInit from './i18next';
+import parse from './parser';
 
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
 
@@ -17,10 +18,9 @@ export default () => {
   const button = form.querySelector('.btn');
   const newsContrainer = document.querySelector('.news-list');
   const modalTextContainer = document.querySelector('.modal-body');
+  const statusContainer = document.querySelector('.message-container');
 
   const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
-
-  setLanguage('en');
 
   const state = {
     form: {
@@ -30,6 +30,16 @@ export default () => {
     feedsList: [],
     newsList: [],
     textOfModal: '',
+  };
+
+  const setFormStatus = (statusKey = 'clean', error) => {
+    if (error) {
+      const { message } = error;
+      const errorText = message ? i18next.t(message) : error;
+      statusContainer.textContent = errorText;
+      return;
+    }
+    statusContainer.innerHTML = i18next.t(statusKey);
   };
 
   const updateForm = {
@@ -112,7 +122,7 @@ export default () => {
   const processingResponses = (responses) => {
     Promise.all(responses)
       .then(responsesList => responsesList.map(response => response.data))
-      .then(dataList => dataList.map(data => parser(data)))
+      .then(dataList => dataList.map(parse))
       .then(feedsList => feedsList.map(({ news }) => news))
       .then(getNewNews)
       .then(addNewNewsToState)
@@ -128,11 +138,11 @@ export default () => {
   };
 
   const getCurrentNews = (target) => {
-    const showNewsButton = target.closest('button');
-    if (!showNewsButton) {
+    const newsButton = target.closest('button');
+    if (!newsButton) {
       return false;
     }
-    const newsContainer = showNewsButton.closest('.list-group-item');
+    const newsContainer = newsButton.closest('.list-group-item');
     const newsLink = newsContainer.querySelector('a');
     const newsLinkHref = newsLink.getAttribute('href');
     const currentNews = state.newsList.find(({ link }) => link === newsLinkHref);
@@ -147,7 +157,7 @@ export default () => {
   const startProcessing = (url) => {
     axios.get(url)
       .then(response => response.data)
-      .then(parser)
+      .then(parse)
       .then(updateState)
       .then(watchForUpdates)
       .catch(onRequestError);
@@ -184,4 +194,6 @@ export default () => {
   watch(state, 'textOfModal', () => {
     modalTextContainer.innerHTML = state.textOfModal;
   });
+
+  i18nextInit().then(() => setFormStatus());
 };

@@ -1,5 +1,5 @@
 const normalizeText = text => (text.match(/CDATA\[(.*?)\]/is) ? text.match(/CDATA\[(.*?)\]/is)[1] : text);
-const getHtml = string => new DOMParser().parseFromString(string, 'text/html');
+const getDom = string => new DOMParser().parseFromString(string, 'text/html');
 
 const getNews = (data) => {
   const newsTitleElement = data.querySelector('title');
@@ -18,8 +18,8 @@ const getNews = (data) => {
 };
 
 export default (string) => {
-  const html = getHtml(string);
-  const feed = html.querySelector('channel');
+  const dom = getDom(string);
+  const feed = dom.querySelector('channel');
 
   if (!feed) {
     throw new Error('feedNotFound');
