@@ -195,5 +195,6 @@ export default () => {
     modalTextContainer.innerHTML = state.textOfModal;
   });
 
-  i18nextInit().then(() => setFormStatus());
+  i18nextInit();
+  setFormStatus();
 };

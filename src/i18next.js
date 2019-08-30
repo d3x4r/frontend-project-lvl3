@@ -12,11 +12,13 @@ const formStatuses = {
   },
 };
 
-export default () => i18next.init({
-  fallbackLng: 'en',
-  resources: {
-    en: {
-      translation: formStatuses.en,
+export default () => {
+  i18next.init({
+    fallbackLng: 'en',
+    resources: {
+      en: {
+        translation: formStatuses.en,
+      },
     },
-  },
-});
+  });
+};
