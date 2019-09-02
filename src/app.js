@@ -8,6 +8,21 @@ import i18nextInit from './i18next';
 import parse from './parser';
 
 const getUrl = (url = '') => new URL(`https://cors-anywhere.herokuapp.com/${url}`);
+const isUrl = value => validator.isURL(String(value));
+const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
+
+const validateLink = (link, linksList) => {
+  if (link === '') {
+    return 'clean';
+  }
+
+  if (isAddedLink(linksList, link)) {
+    return 'alreadyAdded';
+  }
+
+  const isValidLink = isUrl(link);
+  return isValidLink ? 'valid' : 'invalid';
+};
 
 export default () => {
   let timer;
@@ -19,8 +34,6 @@ export default () => {
   const newsContrainer = document.querySelector('.news-list');
   const modalTextContainer = document.querySelector('.modal-body');
   const statusContainer = document.querySelector('.message-container');
-
-  const isAddedLink = (linkList, checkedLink) => some(linkList, ({ link }) => link === checkedLink);
 
   const state = {
     form: {
@@ -80,19 +93,6 @@ export default () => {
       button.disabled = false;
       setFormStatus('afterSucces');
     },
-  };
-
-  const validateLink = (link, linksList) => {
-    if (link === '') {
-      return 'clean';
-    }
-
-    if (isAddedLink(linksList, link)) {
-      return 'alreadyAdded';
-    }
-
-    const isValidUrl = validator.isURL(String(link));
-    return isValidUrl ? 'valid' : 'invalid';
   };
 
   const updateState = ({ title, news }) => {
